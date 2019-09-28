@@ -1,8 +1,6 @@
 include unittest.e
 include misc.e
--- Hexadecimal numbers are interpreted as uint32_t values and then converted to
--- int32_t.
-
+-- Hexadecimal numbers are interpreted as positive values
 test_equal("Hexadecimal numbers #FF", 255, #FF)
 test_equal("Hexadecimal numbers #FFFF", 65535, #FFFF)
 test_equal("Hexadecimal numbers #FFFFFFFF = 2^32-1", power(2,32)-1, #FFFFFFFF)
