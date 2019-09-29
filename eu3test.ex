@@ -13,7 +13,7 @@
 -- in the SCM
 
 constant APP_VERSION = "1.1.0"
-
+without inline
 include std/pretty.e as pretty
 include std/sequence.e
 include std/sort.e
@@ -30,6 +30,7 @@ include std/map.e
 include std/cmdline.e
 include std/eds.e
 include std/regex.e
+include std/pipeio.e as pipe
 
 ifdef UNIX then
 	constant dexe = ""
@@ -106,6 +107,12 @@ enum E_NOERROR, E_INTERPRET, E_TRANSLATE, E_COMPILE, E_EXECUTE, E_BIND, E_BOUND,
 type error_class(object i)
 	return integer(i) and i >= 1 and i <= E_EUTEST
 end type
+
+procedure pipe_system( sequence cmd, integer val )
+    sequence out
+    sequence fds = pipe:exec(cmd, pipe:create()) 
+    pipe:write(fds[pipe:STDIN], repeat('\n', 10))
+end procedure
 
 procedure error(sequence file, error_class e, sequence message, sequence vals, object error_file = 0)
 	object lines
@@ -260,14 +267,14 @@ function prepare_error_file(object file_name)
     	file_data[1] = path
     else
     	-- Malformed error file
-    	file_data = 0
+    	return 0
     end if
     
     if not equal(base_path,"") then
-	    for i = 1 to length(file_data) do
-    		file_data[i] = search:match_replace(base_path, file_data[i], "", 1000)
-		end for
-	end if
+	for i = 1 to length(file_data) do
+    	    file_data[i] = search:match_replace(base_path, file_data[i], "", 1000)
+	end for
+    end if
     
     return file_data
 end function
@@ -345,26 +352,35 @@ end function
 -- check that the results match the newly generated ex.err and that there is one generated.
 -- Unless both of these conditions are met, an error is recorded.
 function interpret_fail( sequence cmd, sequence filename,  sequence fail_list )
-	integer status = system_exec(cmd, 2)
+	boolean error_file_does_not_exist
+	delete_file("ex.err")
+	while file_exists("ex.err") do
+		sleep(0.1)
+	end while
+	pipe_system(cmd, 2)
+	atom expiry = time() + 4
 	integer old_length
+	while not file_exists("ex.err") and time() < expiry do
+		sleep(0.1)
+	end while
 	
+	error_file_does_not_exist = not file_exists("ex.err")
 	-- Now we will compare the control error file to the newly created 
 	-- ex.err.  If ex.err doesn't exist or there is no match error()
 	-- is called and we add to the failed list.
 	old_length = length( fail_list )
 	fail_list = check_errors( filename, fail_list )
-
+	
 	if old_length = length( fail_list ) then
 		-- No new errors found.
-		if status = 0 then
-			-- We were expecting the test program to crash, but it didn't.
+		-- We were expecting the test program to crash, but it didn't.
+		if error_file_does_not_exist then
 			failed += 1
 			fail_list = append(fail_list, filename)
 			error(filename, E_INTERPRET,
 				"The unit test did not crash, which was unexpected.", {})
 		else						
-			error(filename, E_NOERROR, "The unit test crashed in the expected manner. " &
-				"Error status %d.", {status})
+			error(filename, E_NOERROR, "The unit test crashed in the expected manner. ", {})
 		end if
 	end if
 	return fail_list
