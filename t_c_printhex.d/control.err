@@ -1,0 +1,10 @@
+t_c_printhex.e:6
+number is too big for %x or %o format 
+
+
+Global & Local Variables
+
+ t_c_printhex.e:
+    null = 3
+
+
